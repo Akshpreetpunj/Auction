@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<!-- "StAuth10222: I Akshpreet Singh Punj, 000820040 certify that this material is my original work.
+      No other person's work has been used without due acknowledgement. 
+      I have not made my work available to anyone else." 
+-->
+<html>
+    <head>
+        <title>Auction (auctioneer)</title>
+
+        <!-- Required meta tags-->
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <!-- Bootstrap CSS-->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous"> 
+
+        <!-- jQuery and Bootstrap Bundle -->
+        <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct" crossorigin="anonymous"></script>        
+        
+        <!-- Custom CSS -->
+        <style>
+            /* Card Styling */
+            .card {
+                border: 2px solid black;
+                background-color: lightgrey;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1 class="text-center mb-2 pb-2">Auctioneer</h1>
+
+            <!-- Auction item form to get the item details and auction time limit -->
+            <div id="auction_form">
+                <h2 class="text-muted">Post an item for the Auction</h2>
+
+                <form id="create_item" action="">
+                    <!-- Item Name -->
+                    <div class="form-group">
+                        <label for="name">Name:</label>
+                        <input type="text" class="form-control" id="name" name="name" placeholder="Item Name" required>
+                    </div>
+
+                    <!-- Item Price -->
+                    <div class="form-group">
+                        <label for="price">Price:</label>
+                        <input type="number" class="form-control" id="price" name="price" min="1" placeholder="Starting Price" required>
+                    </div>
+
+                    <!-- Time Limit -->
+                    <div class="form-group">
+                        <label for="time_limit">Time Limit (between 10 and 80 seconds):</label>
+                        <input type="range" class="form-range" id="time_limit" name="time_limit" min="10" max="80" step="10" required>
+                    </div>
+
+                    <button type="submit" id="startAuction" class="btn btn-success">Start</button>
+                    <button disabled type="submit" id="startAuctionOff" class="btn btn-success">Start</button>
+                </form>
+            </div>
+
+            <!-- Auction Details -->
+            <div id="auction_data">
+                <div class="card border-dark mb-3">
+                    <div class="card-body">
+                        <!-- Auction Real-time Updates to the auctioneer -->
+                        <h2 id="timer" class="text-center">Auction Time Remaining: </h2>
+                        <h2 id="bidder_name"></h2>
+                        <h2 id="highest_bid"></h2>
+                        <h2 id="total_bid"></h2>
+                    </div>
+                </div>
+
+                <!-- Bidder Details -->
+                <h2>Bidder Information</h2>
+                <table class="table table-bordered table-striped mb-3" id="bidder_table">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Bidder Name</th>
+                            <th>Highest Bid Price</th>
+                            <th>Number of Bids</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Bidder Information -->
+                    </tbody>
+                </table>
+
+                <!-- Bid History Details -->
+                <h2>Bid History</h2>
+                <table class="table table-bordered table-striped" id="history_table">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Bidder Name</th>
+                            <th>Bid Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Bid History -->
+                    </tbody>
+                </table>
+
+                <!-- New auction button -->
+                <button type="submit" id="newAuction" class="btn btn-success mb-3">Start New Auction</button>
+            </div>
+
+            <!-- jQuery -->
+            <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+            
+            <!-- Socket.IO -->
+            <script src="/socket.io/socket.io.js"></script>
+
+            <script>
+                // Make the connection
+                var socket = io();
+                // variable for time
+                var time;
+                // variable for total bids
+                var bidcounter = 0;
+
+                // Page handler
+                $(document).ready(function(){
+                    $("#auction_data").hide();
+                    $("#startAuction").hide();
+                    $("#newAuction").hide();
+                    $("#create_item").submit(function(e){
+                        $("#auction_form").hide();
+                        $("#auction_data").show();
+                        $("#newAuction").hide();
+                    });
+                });
+                
+                // Checking the form inputs to make sure that there is a user/auctioneer input (data) before starting the auction
+                $("#create_item > div > input").keyup(function() {
+                    var empty = false;
+
+                    // checking each input values
+                    $("#create_item > div > input").each(function() {
+                        if($(this).val() == '') {
+                            empty = true;
+                        }
+                    });
+
+                    // If the form inputs are empty
+                    if(empty) {
+                        $("#startAuction").hide();
+                        $("#startAuctionOff").show();
+                    } else { // If the form inputs are not empty
+                        $("#startAuction").show();
+                        $("#startAuctionOff").hide();
+                    }
+                });
+
+                // Submit handler for auction item
+                $("#create_item").submit(function() {
+                    // submit auction details for bidders
+                    socket.emit("submititem",
+                    {   name: $("#name").val(),
+                        price: $("#price").val(),
+                        time: $("#time_limit").val()
+                    });
+
+                    // Setting the highest bid price to the price initially set by the auctioneer and highest 
+                    // bidder name to "auctioneer" when the auction first begins 
+                    $("#bidder_name").html("Highest Bidder Name: auctioneer");
+                    $("#highest_bid").html("Highest Bid: $" + $("#price").val());
+                    $("#bidder_table > tbody:last-child").append("<tr><td>auctioneer</td><td>$" + $("#price").val() + "</td><td>1</td></tr>");
+                    $("#history_table > tbody:last-child").append("<tr><td>auctioneer</td><td>$" + $("#price").val() + "</td></tr>");
+
+                    // Storing the time limit set by the auctioneer
+                    time = document.getElementById("time_limit").value;
+                    // update the timer
+                    updateTimer();
+
+                    // override the default submit behaviour
+                    return false;
+                });
+
+                // if a bid is received, show to the auctioneer
+                socket.on('deliverbid', function(bid) {
+                    bidcounter++;
+
+                    // Display the results of bidding
+                    $("#bidder_name").html("Highest Bidder Name: " + bid.name);
+                    $("#highest_bid").html("Highest Bid: $" + bid.price);
+                    $("#total_bid").html("Total number of bids received: " + bidcounter);
+
+                    // Checking if the bidder already bid once
+                    if($("#bidderName" + bid.name).length) {
+                        // Changing the bidder price with the new bid price 
+                        $("#bidderPrice" + bid.name).html("$" + bid.price);
+
+                        // Changing the bid count
+                        $("#bidderCount" + bid.name).html(bid.bidcount);
+                    } else { // if the bidder is bidding for the first time
+                        // Adding a row of data for each new bidder
+                        $("#bidder_table > tbody:last-child").append("<tr><td id=bidderName" + bid.name + ">" + bid.name + "</td><td id=bidderPrice" + bid.name + ">$" + bid.price + "</td><td id=bidderCount" + bid.name + ">" + bid.bidcount + "</td></tr>");
+                    }
+                    // History of all bids received in chronological order (most recent first)
+                    $("#history_table > tbody").prepend("<tr><td>" + bid.name + "</td><td>$" + bid.price + "</td></tr>");
+                });
+
+                // New Auction handler
+                $("#newAuction").click(function() {
+                    // Reset page elements for the new auction 
+                    bidcounter = 0;
+
+                    $("#bidder_name").html("");
+                    $("#highest_bid").html("");
+                    $("#total_bid").html("");
+
+                    $("#create_item").trigger("reset");
+                    $("#startAuctionOff").show();
+                    $("#startAuction").hide();
+
+                    $("#auction_form").show();
+                    $("#auction_data").hide();
+
+                    $("#bidder_table > tbody").empty();
+                    $("#history_table > tbody").empty();
+                });
+
+                /* This function is used for updating the timer */
+                function updateTimer()
+                {
+                    time = time - 1;
+                    document.getElementById("timer").innerHTML = 
+                    "Auction Time Remaining: " + "<span class='text-danger'>" + time + "</span>";
+                    
+                    // is time up?
+                    if (time != 0)
+                    {
+                    setTimeout(
+                        updateTimer, 
+                        1000);
+                    } 
+                    else if (time == 0) // When the timer reaches 0
+                    {
+                        document.getElementById("timer").innerHTML = "Auction ended!";
+                        // Show the new auction button
+                        $("#newAuction").show();
+                    }
+                }
+            </script>
+        </div>
+    </body>
+</html>

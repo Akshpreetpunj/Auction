@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<!-- "StAuth10222: I Akshpreet Singh Punj, 000820040 certify that this material is my original work.
+      No other person's work has been used without due acknowledgement. 
+      I have not made my work available to anyone else." 
+-->
+<html>
+    <head>
+        <title>Auction (bidder)</title>
+
+        <!-- Required meta tags-->
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <!-- Bootstrap CSS-->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous"> 
+
+        <!-- jQuery and Bootstrap Bundle -->
+        <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct" crossorigin="anonymous"></script>        
+        
+        <!-- Custom CSS -->
+        <style>
+            /* Card Styling */
+            .card {
+                border: 2px solid black;
+                background-color: lightgrey;
+            }
+
+            /* Waiting text Styling */
+            #waitingText {
+                font-size: 35px;
+                font-weight: 600;
+            }
+
+            /* Low bid text Styling */
+            #bidlow {
+                color: red;
+                font-size: 26px;
+                font-weight: 500;
+            }
+
+            /* High bid text Styling */
+            #bidhigh {
+                color: green;
+                font-size: 26px;
+                font-weight: 500;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1 class="text-center mb-2 pb-2">Bidder</h1>
+
+            <!-- Bidder name form to get the user name -->
+            <div id="user_form">
+                <form id="create_name" action="">
+                    <!-- Bidder Name -->
+                    <div class="form-group">
+                        <label for="bidder_name">Name:</label>
+                        <input type="text" class="form-control" id="bidder_name" name="bidder_name" placeholder="Name" required>
+                    </div>
+
+                    <button type="submit" id="submitName" class="btn btn-success">Submit</button>
+                    <button disabled type="submit" id="submitNameOff" class="btn btn-success">Submit</button>
+                </form>
+            </div>
+
+            <!-- Display before auction start -->
+            <div id="waiting">
+                <!-- Auction result -->
+                <h2 id="result" class="text-center text-info"></h2>
+                <p id="waitingText" class="text-center">Waiting for the next auction to begin...</p>
+
+                <div class="d-flex justify-content-center">
+                    <div class="spinner-border text-primary ml-2" role="status" aria-hidden="true"></div>
+                </div>
+            </div>
+
+            <!-- Display after auction start -->
+            <div id="auction">
+                <div id="auction_data" class="mb-3">
+                    <div class="card border-dark mb-3">
+                        <div class="card-body">
+                            <!-- Auction Real-time Updates to the bidder -->
+                            <h2 id="timer" class="text-center">Auction Time Remaining: </h2>
+                            <h2 id="item_name"></h2>
+                            <h2 id="current_highest_bidder"></h2>
+                            <h2 id="current_highest_bid"></h2>
+                        </div>
+                    </div>
+
+                    <p id="bidlow" class="text-center"></p>
+                    <p id="bidhigh" class="text-center"></p>
+                </div>
+
+                <!-- Bidder form for submitting a new bid -->
+                <div id="bidder_form">
+                    <form id="create_bid" action="">
+                        <div class="form-group">
+                            <!-- Bid Price -->
+                            <label for="bidder_price">Price:</label>
+                            <input type="number" class="form-control" id="bidder_price" name="bidder_price" min="1" placeholder="Bid Price" required>
+                        </div>
+
+                        <button type="submit" id="submitBid" class="btn btn-success">Submit</button>
+                        <button disabled type="submit" id="submitBidOff" class="btn btn-success">Submit</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- jQuery -->
+            <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+
+            <!-- Socket.IO -->
+            <script src="/socket.io/socket.io.js"></script>
+
+            <script>
+                // Make the connection
+                var socket = io();
+                // variable for checking the auction status
+                var auctionStatus = false;
+                // variable for checking the bidder status
+                var bidderStatus = false;
+                // variable for time
+                var time;
+                // variable for bid price
+                var bidPrice;
+                // variable for highest bidder
+                var highestBidderName;
+                // variable for highest bid price
+                var highestBidPrice;
+                // variable for the number of bids from a bidder
+                var userBids = 0;
+
+                // Page handler
+                $(document).ready(function(){
+                    // Checking the auction status
+                    if(auctionStatus === false) {
+                        $("#submitName").hide();
+                        $("#waiting").hide();
+                        $("#auction").hide();
+                        $("#submitName").hide();
+                        $("#submitNameOff").show();
+                        $("#submitBidOff").hide();
+                    }
+                });
+
+                // Checking the form inputs to make sure that the user/bidder submitted their name before the user can 
+                // participate in the auction
+                $("#create_name > div > input").keyup(function() {
+                    var empty = false;
+
+                    // checking each input values
+                    $("#create_name > div > input").each(function() {
+                        if($(this).val() == '') {
+                            empty = true;
+                        }
+                    });
+
+                    // If the form inputs are empty
+                    if(empty) {
+                        $("#submitName").hide();
+                        $("#submitNameOff").show();
+                    } else { // If the form inputs are not empty
+                        $("#submitName").show();
+                        $("#submitNameOff").hide();
+                    }
+                });
+
+                // Submit handler for the bidder name
+                $("#create_name").submit(function() {
+                    // if the auction is not started
+                    if(auctionStatus === false) {
+                        $("#waiting").show();
+                        $("#user_form").hide();
+                    }
+
+                    // if the auction is already started 
+                    if(auctionStatus === true && bidderStatus === false) {
+                        $("#waiting").show();
+                        $("#user_form").hide();
+                        bidderStatus = true;
+                    }
+
+                    // change the bidder status if they have submitted their name
+                    bidderStatus = true;
+                    $("#submitNameOff").show();
+                    $("#submitName").hide();
+
+                    // override the default submit behaviour
+                    return false;
+                });
+
+                // If auction item is received, start the auction
+                socket.on("deliveritem", function(item)
+                {
+                    // Reset elements for the new auction item
+                    $("#bidlow").html("");
+                    $("#bidhigh").html("");
+                    $("#current_highest_bidder").html("");
+                    $("#result").html("");
+                    $("#create_bid").trigger("reset");
+                    $("#waiting").hide();
+                    $("#submitBid").show();
+                    $("#submitBidOff").hide();
+                    userBids = 0;
+
+                    // Set the highest bidder as the auctioneer when the auction taking place for the first time
+                    highestBidderName = "auctioneer";
+
+                    // change the auction status
+                    auctionStatus = true;
+
+                    // Set the time limit for bidders
+                    time = item.time;
+
+                    // Set the highest bid as the price set by the auctioneer when the auction taking place for the first time
+                    highestBidPrice = parseFloat(item.price);
+                    $("#current_highest_bid").html("Starting Price: $" + highestBidPrice);
+
+                    // update the timer
+                    updateTimer();
+
+                    // Display the Item name
+                    $("#item_name").html("Item Name: " + item.name);
+
+                    // Check the bidder status
+                    if(bidderStatus === true) {
+                        $("#user_form").hide();
+                        $("#auction").show();
+                    }
+                });
+
+                // Submit handler for the bid
+                $("#create_bid").submit(function() {
+                    $("#bidlow").html("");
+                    $("#bidhigh").html("");
+
+                    // Get the bid price
+                    bidPrice = parseFloat($("#bidder_price").val());
+
+                    // check if the user/bidder bid price is higher than the current highest bid price
+                    if(bidPrice > highestBidPrice && auctionStatus === true) {
+                        // change the highest bid price value
+                        highestBidPrice = bidPrice;
+                        // increment the number of bids
+                        userBids++;
+
+                        // submit bid details
+                        socket.emit("submitbid", 
+                                {   name: $("#bidder_name").val(),
+                                    price: $("#bidder_price").val(), 
+                                    bidcount: userBids,
+                                });
+
+                        // Display the high bid message to the bidder
+                        $("#bidhigh").html("You are the current highest bidder!");
+                    } else { // if the bid price is lower than the current highest bid price
+                        // Display the low bid message to the bidder
+                        $("#bidlow").html("Bid is too low!");
+                    }
+
+                    // override the default submit behaviour
+                    return false;
+                });
+
+                // if a bid is received, show to the bidders
+                socket.on("deliverbid", function(bid) {
+                    highestBidPrice = bid.price;
+                    highestBidderName = bid.name;
+
+                    // Display the Current highest bidder and current highest bid price 
+                    $("#current_highest_bidder").html("Current Highest Bidder Name: " + highestBidderName);
+                    $("#current_highest_bid").html("Current Highest Bid Price: $" + highestBidPrice);
+                });
+
+                /* This function is used for updating the timer */
+                function updateTimer()
+                {
+                    time = time - 1;
+                    document.getElementById("timer").innerHTML = 
+                    "Auction Time Remaining: " + "<span class='text-danger'>" + time + "</span>";
+                    
+                    // is time up?
+                    if (time != 0)
+                    {
+                    setTimeout(
+                        updateTimer, 
+                        1000);
+                    } 
+                    else if (time == 0) // When the timer reaches 0
+                    {
+                        // change the auction status
+                        auctionStatus = false;
+                        document.getElementById("timer").innerHTML = "Auction ended!";
+
+                        $("#submitBidOff").show();
+                        $("#submitBid").hide();
+                        $("#auction").hide();
+
+                        // check the bidder status
+                        if(bidderStatus === true) {
+                            // Display the auction winner name and bid price
+                            document.getElementById("result").innerHTML = "Winner Name: " + highestBidderName + 
+                                                                           "<br/>Winner Bid Price: $" + highestBidPrice;
+                            // Display the waiting text 
+                            $("#waiting").show();
+                        }
+                    }
+                }
+            </script>
+        </div>
+    </body>
+</html>
