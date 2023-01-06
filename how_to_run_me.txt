@@ -1,0 +1,11 @@
+To run execute on the command line:
+
+npm install
+
+node server.js
+
+...then visit the url:
+
+http://localhost:3000/auctioneer
+
+http://localhost:3000/bidder
